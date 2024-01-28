@@ -13,7 +13,8 @@ from cars.scraper import search_otomoto
 
 
 class Command(BaseCommand):
-    help = "Scrape vehicles from otomoto and add them to the db"
+    help = "Scrape vehicles from otomoto and add them to the db. \n \
+        Requires a brand as an argument"
 
     def add_arguments(self, parser):
         parser.add_argument("brand", type=str)

@@ -49,24 +49,14 @@ class AdvancedTextSearchCar(APIView):
         search_term = serializer.validated_data['search']
         brand = serializer.validated_data['brand']
 
-        print(search_term, brand)
-        # qs = models.Car.objects.all().filter(brand_id=)
         queryset = models.Car.objects.all().filter(brand_id=brand)
-
         df = read_frame(queryset)
-        df.to_csv("before.csv")
         
-        print(df)
-
-        processed_df = dp.process_df_summary(df)
-        processed_df.to_csv("after.csv")
-
-        filtered_df = dp.retrieve_filtered(dataframe=processed_df, keyword=search_term)
+        filtered_df = dp.retrieve_filtered(dataframe=df, keyword=search_term)
         matching_ids = filtered_df['id'].tolist()
 
-        queryset = models.Car.objects.filter(id__in=matching_ids)
-        serializer = slz.CarSerializer(queryset, many=True)
-
+        final_queryset = models.Car.objects.filter(id__in=matching_ids)
+        serializer = slz.CarSerializer(final_queryset, many=True)
 
         stats = {"Search Term": search_term, "Key Values": dp.calculate_stats(filtered_df), "cars": serializer.data}
 

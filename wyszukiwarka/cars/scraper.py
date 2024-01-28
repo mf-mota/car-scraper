@@ -12,8 +12,12 @@ from selenium.common.exceptions import NoSuchElementException
 from django.db import connection
 from wyszukiwarka.settings import DATABASES
 from django.db import transaction
-
+import cars.data_processer as dp
+from wyszukiwarka import settings
 from sqlalchemy import create_engine
+import environ
+env = environ.Env()
+environ.Env.read_env()
 
 db_def = DATABASES['default']
 
@@ -24,6 +28,7 @@ def search_otomoto(brand):
     def make_url(brand):
         url = f"https://www.otomoto.pl/osobowe/{brand}/?search%5Bfilter_enum_damaged%5D=0"
         return url
+
 
     def get_id_or_new_brand(brand_name):
         db_brand = Brand.objects.all().filter(name=brand_name).first()
@@ -39,14 +44,21 @@ def search_otomoto(brand):
         try:
             element = listing.find_element(By.CSS_SELECTOR, f"dd[data-parameter='{selector}']")
             data = data_type(element.text.replace(" ", "").replace("km", ""))
-        except (NoSuchElementException, ValueError):
+        except:
             data = None
         return data
     
+    def extract_price(listing):
+        try:
+            price = int(listing.find_element(By.CSS_SELECTOR, "div div h3").text.replace(" ", ""))
+        except:
+            price = None
+        return price
 
-    @transaction.atomic
     def listings_to_df(brand_name):
-        engine_con = create_engine("postgresql://postgres:admin@localhost:5432/search-db").connect()
+
+        conn_str = f"{env('DB_TYPE')://{env('DB_USER')}:{env('DB_PASSWORD')}@{env('DB_HOST')}:{env('DB_PORT')}/{env('DB_NAME')}}"
+        engine_con = create_engine(conn_str).connect()
         browser = browser = webdriver.Chrome()
         brand_id = get_id_or_new_brand(brand_name=brand_name)
         
@@ -66,7 +78,7 @@ def search_otomoto(brand):
         columns = ['title', 'summary', 'engine_size', 'bhp_count', 'mileage', 'fuel', 'gearbox', 'year', 'price', 'brand_id']
         df = pd.DataFrame(columns=columns)
 
-        for page_number in range(0, pages):
+        for page_number in range(0, 10):
             time.sleep(0.5)
             listings = browser.find_elements(By.CSS_SELECTOR, "div[data-testid='search-results'] div > article[data-orientation='horizontal'] > section")
 
@@ -87,24 +99,31 @@ def search_otomoto(brand):
                 fuel = extract_key_props(listing=listing, selector="fuel_type", data_type=str)
                 gearbox = extract_key_props(listing=listing, selector="gearbox", data_type=str)
                 year = extract_key_props(listing=listing, selector="year")
-                price = extract_key_props(listing=listing, selector="price")
-
+                price = extract_price(listing=listing)
 
                 df.loc[len(df)] = [title, summary, pojemnosc, moc, mileage, fuel, gearbox, year, price, brand_id]
 
             if page_number % 5 == 0:
                 print(df)
                 try:
-                    df.to_sql('cars_car', con=engine_con, index=False, if_exists="append")
-                    engine_con.commit()
+                    df_ft = dp.process_df_summary(df)
+                    print("ft: ", df_ft)
+                    with transaction.atomic():
+                        df_ft.to_sql('cars_car', con=engine_con, index=False, if_exists="append")
+                        engine_con.commit()
+
                 except Exception as e:
                     pass
 
                 df = pd.DataFrame(columns=columns)
+                df_ft = pd.DataFrame(columns=columns)
                 time.sleep(0.1)
             if page_number < pages - 1:
                 browser.get(make_url(brand)+"&page="+str(page_number+2))
-        df.to_sql('cars_car', con=engine_con, index=False, if_exists="append")
+
+
+        df_ft = dp.process_df_summary(df)
+        df_ft.to_sql('cars_car', con=engine_con, index=False, if_exists="append")
         engine_con.commit()
         
 

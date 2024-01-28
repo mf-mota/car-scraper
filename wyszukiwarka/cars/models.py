@@ -34,6 +34,12 @@ class Car(models.Model):
     
     year = models.IntegerField()
     price = models.IntegerField()
+    tk_lemmatized = models.TextField(max_length=40000, null=True)
+
+    def __str__(self) -> str:
+        return f"Car: {self.id}/{self.brand}/{self.title}"
+
+
 
 
 

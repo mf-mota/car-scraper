@@ -10,7 +10,7 @@ class CarSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Car
         fields = ['id', 'brand', 'title', 'year', 'fuel', 'mileage', 'price', 
-                    'engine_size', 'bhp_count', 'gearbox', 'summary']
+                    'engine_size', 'bhp_count', 'gearbox', 'summary', 'tk_lemmatized']
         
 class BrandSerializer(serializers.ModelSerializer):
     class Meta:
